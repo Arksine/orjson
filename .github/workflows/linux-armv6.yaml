@@ -4,17 +4,27 @@ jobs:
 
   linux-armv6:
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: [
+          { version: '3.7', abi: 'cp37-cp37m' }
+        ]
+        target: [
+          { arch: 'arm-unknown-linux-gnueabihf' },
+        ]
     steps:
       - uses: actions/checkout@v2
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          target: arm-unknown-linux-gnueabihf
+          target: ${{ matrix.target.arch }}
           toolchain: nightly-2023-05-31
           default: true
       - name: install cross toolchain
         env:
+          PYO3_CROSS_LIB_DIR: "/opt/python/${{ matrix.python.abi }}"
           CFLAGS: "-Os -fno-plt -flto=thin"
           LDFLAGS: "-Os -flto=thin -Wl,--as-needed"
           CARGO_UNSTABLE_SPARSE_REGISTRY: "true"
@@ -30,7 +40,7 @@ jobs:
           export CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-unknown-linux-gnueabihf-gcc
 
           pip3 install maturin
-          maturin build --release --strip --target arm-unknown-linux-gnueabihf --out dist
+          maturin build --release --strip --target arm-unknown-linux-gnueabihf --out dist -i python${{ matrix.python.version }}
 
       - name: Upload wheels
         uses: actions/upload-artifact@v3
