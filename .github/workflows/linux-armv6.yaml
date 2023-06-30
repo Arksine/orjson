@@ -28,8 +28,8 @@ jobs:
           default: true
       - name: install cross toolchain
         env:
-          CFLAGS: "-Os -fno-plt -flto=thin"
-          LDFLAGS: "-Os -flto=thin -Wl,--as-needed"
+          CFLAGS: "-Os"
+          LDFLAGS: "-Os -flto -Wl,--as-needed"
           CARGO_UNSTABLE_SPARSE_REGISTRY: "true"
           RUSTFLAGS: "-C opt-level=s"
           CARGO_FEATURE_YYJSON: "1"
