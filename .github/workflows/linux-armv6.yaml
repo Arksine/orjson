@@ -43,7 +43,7 @@ jobs:
       with:
         target: ${{ matrix.target.target }}
         rust-toolchain: nightly-2023-05-31
-        manylinux: auto
+        container: 'off'
         args: --release --strip --out dist -i python${{ matrix.python.version }}
 
     - uses: uraimo/run-on-arch-action@v2
