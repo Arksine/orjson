@@ -1,4 +1,4 @@
-name: linux
+name: linux-armv6
 on: push
 jobs:
 
@@ -11,42 +11,66 @@ jobs:
           { version: '3.7', abi: 'cp37-cp37m' }
         ]
         target: [
-          { arch: 'arm-unknown-linux-gnueabihf' },
+          {
+            arch: 'armv6',
+            target: 'arm-unknown-linux-gnueabihf'
+          },
         ]
     steps:
-      - uses: actions/checkout@v2
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "${{ matrix.python.version }}"
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          target: ${{ matrix.target.arch }}
-          toolchain: nightly-2023-05-31
-          default: true
-      - name: install cross toolchain
-        env:
-          CFLAGS: "-Os"
-          LDFLAGS: "-Os -flto -Wl,--as-needed"
-          CARGO_UNSTABLE_SPARSE_REGISTRY: "true"
-          RUSTFLAGS: "-C opt-level=s"
-          CARGO_FEATURE_YYJSON: "1"
-          CC_arm_unknown_linux_gnueabihf: "${{ matrix.target.arch }}-gcc"
-          CXX_arm_unknown_linux_gnueabihf: "${{ matrix.target.arch }}-g++"
-          AR_arm_unknown_linux_gnueabihf: "${{ matrix.target.arch }}-ar"
-          CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER: "${{ matrix.target.arch }}-gcc"
+    - uses: actions/checkout@v2
+    - name: Fetch armv6-tools
+      uses: dsaltares/fetch-gh-release-asset@master
+      with:
+        repo: 'Arksine/armv6l-linux-cross-toolchain'
+        version: 'tags/v11.2.0'
+        file: 'arm-unknown-linux-gnueabihf-x86_64-ubuntu.tar.gz'
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract tools
+      run: |
+        tar -xf arm-unknown-linux-gnueabihf-x86_64-ubuntu.tar.gz
+        echo $GITHUB_WORKSPACE/${{ matrix.target.target }}/bin >> $GITHUB_PATH
+
+    - name: Build Wheels
+      uses: messense/maturin-action@v1
+      env:
+        PYO3_CROSS_LIB_DIR: "/opt/python/${{ matrix.python.abi }}"
+        CFLAGS: "-Os"
+        LDFLAGS: "-Os -flto -Wl,--as-needed"
+        CARGO_UNSTABLE_SPARSE_REGISTRY: "true"
+        RUSTFLAGS: "-C opt-level=s"
+        CARGO_FEATURE_YYJSON: "1"
+        CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER: "${{ matrix.target.target }}-gcc"
+      with:
+        maturin-version: v0.14.7
+        target: ${{ matrix.target.target }}
+        rust-toolchain: nightly
+        manylinux: auto
+        args: --release --strip --out dist -i python${{ matrix.python.version }}
+
+    - uses: uraimo/run-on-arch-action@v2
+      name: Test
+      with:
+        arch: ${{ matrix.target.arch }}
+        distro: ubuntu22.04
+        githubToken: ${{ github.token }}
+        install: |
+          export TZ=UTC
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends software-properties-common gpg gpg-agent curl
+          add-apt-repository ppa:deadsnakes/ppa
+          apt-get update
+          apt-get install -y python${{ matrix.python.version }}-dev python${{ matrix.python.version }}-venv
         run: |
-          brew tap messense/macos-cross-toolchains
-          brew install ${{ matrix.target.arch }}
+          python${{ matrix.python.version }} -m venv venv
+          venv/bin/pip install -U pip wheel
+          venv/bin/pip install -r test/requirements.txt
+          venv/bin/pip install orjson --no-index --find-
 
-          pip3 install maturin
-          maturin build --release --strip --target ${{ matrix.target.arch }} --out dist -i python${{ matrix.python.version }}
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
-          retention-days: 1
+    - name: Upload wheels
+      uses: actions/upload-artifact@v3
+      with:
+        name: wheels
+        path: dist
+        retention-days: 1
